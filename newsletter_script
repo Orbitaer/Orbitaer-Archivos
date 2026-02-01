@@ -1,0 +1,100 @@
+const SPREADSHEET_ID = "1DG0Xx_9PjyXB9v7mjRbCFF1cvzJhGo4wqf2fhA9pTlw";
+const ROW_INICIO_DATOS = 2
+const HOJA_SUSCRIPTORES = "Suscriptores";
+const HOJA_BAJAS = "Bajas";
+const ENLACE_POLITICA = "https://sites.google.com/view/orbitaer/politica-de-privacidad";
+
+// Bienvenida //
+
+function enviarBienvenida() {
+  const hoja = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(HOJA_SUSCRIPTORES);
+  const ultimaFila = hoja.getLastRow();
+
+  const nombre = hoja.getRange(ultimaFila, 1).getValue();
+  const email  = hoja.getRange(ultimaFila, 3).getValue();
+
+  if (!email) {
+    Logger.log("No se encontró email en la última fila.");
+    return;
+  }
+
+  const asunto = "¡Bienvenido/a a nuestra Newsletter!";
+  const cuerpo_bienvenida = `
+    <p>Hola <strong>${nombre || "suscriptor"}</strong>,</p>
+    <p>¡Gracias por unirte a nuestra newsletter! <br> Pronto recibirás noticias, material exclusivo y más.</p>
+    <p>Mientras tanto, te recomendamos consultar nuestra 
+      <a href="${ENLACE_POLITICA}" target="_blank">Política de Privacidad</a>.
+    </p>
+    <p>Un saludo,</p>
+    <p>Orbitaer</p>
+    <img src=https://raw.githubusercontent.com/Orbitaer/Orbitaer-Archivos/refs/heads/main/imagenes/banner.png width="600">
+    <hr>
+    <p style="font-size:12px; color:#777; line-height:1.5;">
+      Recibes este correo porque estás suscrito a nuestra newsletter.<br>
+      Si no deseas recibir más correos, puedes darte de baja <a href="https://docs.google.com/forms/d/e/1FAIpQLSdf-WiUQfjD4r9-zieCqKBHQB4aooR4rTIQG9r6wJRe71Jo1Q/viewform" target="_blank">aquí</a>.<br>
+      Si lo deseas, puedes consulatar nuestra <a href="${ENLACE_POLITICA}" target="_blank">Política de Privacidad</a>.<br>
+      ©2026 Orbitaer. Todos los derechos reservados.
+    </p>
+  `;
+
+  MailApp.sendEmail({
+    to: email,
+    subject: asunto,
+    htmlBody: cuerpo_bienvenida
+  });
+
+  Logger.log(`Correo de bienvenida enviado a ${email}`);
+}
+
+// Newsletter //
+
+function enviarNewsletter() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hojaSuscriptores = ss.getSheetByName(HOJA_SUSCRIPTORES);
+  const hojaBajas = ss.getSheetByName(HOJA_BAJAS);
+
+  const htmlFile = HtmlService.createHtmlOutputFromFile('newsletter_00X').getContent();
+
+  const asuntoNewsletter = "Orbitaer - Asunto";
+
+  const totalFilasSuscriptores = hojaSuscriptores.getLastRow() - (ROW_INICIO_DATOS - 1);
+  if (totalFilasSuscriptores <= 0) {
+    throw new Error("No hay suscriptores registrados");
+  }
+
+  const suscriptores = hojaSuscriptores.getRange(ROW_INICIO_DATOS, 3, totalFilasSuscriptores, 1)
+    .getValues()
+    .flat()
+    .map(e => e.toString().trim().toLowerCase())
+    .filter(email => email);
+
+  let bajas = [];
+  const totalFilasBajas = hojaBajas.getLastRow() - (ROW_INICIO_DATOS - 1);
+  if (totalFilasBajas > 0) {
+    bajas = hojaBajas.getRange(ROW_INICIO_DATOS, 1, totalFilasBajas, 1)
+      .getValues()
+      .flat()
+      .map(e => e.toString().trim().toLowerCase())
+      .filter(email => email);
+  } else {
+    Logger.log("No hay registros en la hoja de Bajas");
+  }
+
+  const destinatarios = suscriptores.filter(email => !bajas.includes(email));
+
+  if (destinatarios.length === 0) {
+    Logger.log("No hay destinatarios válidos después de filtrar bajas.");
+    return;
+  }
+
+  // Envío de newsletter
+  destinatarios.forEach(email => {
+    MailApp.sendEmail({
+      to: email,
+      subject: asuntoNewsletter,
+      htmlBody: htmlFile
+    });
+  });
+
+  Logger.log(`Newsletter enviada a ${destinatarios.length} destinatarios.`);
+}
